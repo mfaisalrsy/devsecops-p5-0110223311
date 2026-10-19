@@ -1,0 +1,95 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ==========================================
+  # JOB 1: Build, Dependency Install & Test
+  # ==========================================
+  build:
+    name: Build & Unit Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Application Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Unit Tests & Verify Build
+        run: |
+          echo "Running automated unit testing with pytest..."
+          pytest -v --tb=short
+
+  # ==========================================
+  # JOB 2: Static Application Security Testing (SAST)
+  # ==========================================
+  sast-scan:
+    name: SAST Security Scan & Quality Gate
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Bandit SAST Scanner
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+
+      - name: Run Bandit SAST Security Scan
+        run: |
+          echo "=================================================="
+          echo " Starting SAST Scan using Bandit Security Engine "
+          echo "=================================================="
+          # Output JSON report for artifact logging
+          bandit -r . -x ./tests -f json -o bandit-report.json || true
+          
+          # Human-readable console output
+          bandit -r . -x ./tests -f txt
+
+      - name: Enforce SAST Quality Gate
+        run: |
+          echo "=================================================="
+          echo " Enforcing Quality Gate Policy                    "
+          echo " Threshold: 0 High & 0 Medium Severity Findings   "
+          echo "=================================================="
+          # Flag -ll ensures non-zero exit code if Medium or High severity issues are present
+          if bandit -r . -x ./tests -ll; then
+            echo "=================================================="
+            echo " [QUALITY GATE STATUS]: PASSED                    "
+            echo " All security policies and thresholds are met.   "
+            echo "=================================================="
+          else
+            echo "=================================================="
+            echo " [QUALITY GATE STATUS]: FAILED                    "
+            echo " Critical/Medium security vulnerabilities detected!"
+            echo "=================================================="
+            exit 1
+          fi
+
+      - name: Upload SAST Security Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-sast-security-report
+          path: bandit-report.json
