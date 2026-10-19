@@ -32,7 +32,7 @@ jobs:
       - name: Run Unit Tests & Verify Build
         run: |
           echo "Running automated unit testing with pytest..."
-          pytest -v --tb=short
+          python -m pytest -v --tb=short
 
   # ==========================================
   # JOB 2: Static Application Security Testing (SAST)
